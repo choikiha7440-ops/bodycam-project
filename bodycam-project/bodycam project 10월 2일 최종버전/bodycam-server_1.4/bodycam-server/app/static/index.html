@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>바디캠 관제</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📹</text></svg>">
+<style>
+:root{
+  --bg:#E6EBEF; --panel:#F7F9FA; --panel-2:#EEF2F5; --ink:#1A2631; --muted:#5C6A77; --line:#CBD4DC;
+  --rec:#D4233A; --rec-soft:#FBE3E6; --ok:#2B8A57; --ok-soft:#DDF1E6;
+  --charge:#2D6AD1; --charge-soft:#E0E9FA; --warn:#C9800E; --warn-soft:#FBEFD9;
+  --off:#8C97A2; --off-soft:#E4E8EC;
+  --radius-lg:14px; --radius-sm:8px;
+  --font:"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#121A21; --panel:#1A242D; --panel-2:#212D37; --ink:#E4EAEF; --muted:#94A2AF; --line:#2E3B47;
+    --rec:#FF4D61; --rec-soft:#3A1B22; --ok:#4CC486; --ok-soft:#173226;
+    --charge:#6B9CF2; --charge-soft:#1B2A45; --warn:#F0AE45; --warn-soft:#3A2D14;
+    --off:#6F7C88; --off-soft:#232E38; color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.5;
+  padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--charge);outline-offset:2px}
+
+.topbar{display:flex;align-items:center;gap:24px;padding:14px 24px;border-bottom:1px solid var(--line);background:var(--panel)}
+.topbar h1{font-size:19px;font-weight:700;margin:0;letter-spacing:-.01em}
+.summary{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:14px}
+.summary b{color:var(--ink);font-variant-numeric:tabular-nums;font-weight:700}
+.summary .rec-count b{color:var(--rec)}
+.clock{margin-left:auto;font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;letter-spacing:-.02em}
+.conn{font-size:13px;padding:3px 10px;border-radius:999px;background:var(--off-soft);color:var(--muted)}
+.conn.live{background:var(--ok-soft);color:var(--ok)}
+
+.alerts{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;background:var(--rec);color:#fff;padding:9px 24px;font-weight:600}
+.alerts:empty{display:none}
+.alerts .lead{display:flex;align-items:center;gap:8px;margin-right:6px}
+.alerts .pulse{width:10px;height:10px;border-radius:50%;background:#fff;animation:pulse 1.2s infinite}
+.alert{display:flex;gap:8px;align-items:center;background:rgba(255,255,255,.18);border-radius:999px;padding:3px 12px;font-size:14px}
+.alert time{font-variant-numeric:tabular-nums;font-weight:700}
+@keyframes pulse{50%{opacity:.25}}
+
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:20px;padding:20px 24px;align-items:start}
+@media (max-width:1100px){.layout{grid-template-columns:1fr}}
+
+.channels{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;display:flex;flex-direction:column}
+.tile.state-recording{border:2px solid var(--rec);box-shadow:0 0 0 4px var(--rec-soft)}
+.tile.state-offline{opacity:.78}
+.tile-head{display:flex;align-items:center;gap:10px;padding:10px 12px 8px}
+.ch{font-size:30px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.04em;min-width:44px}
+.who{min-width:0;flex:1}
+.who .name{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who .cid{font-size:12px;color:var(--muted)}
+.icon-btn{border:0;background:transparent;border-radius:var(--radius-sm);padding:4px 7px;cursor:pointer;color:var(--muted)}
+.icon-btn:hover{background:var(--panel-2);color:var(--ink)}
+
+.view{position:relative;aspect-ratio:4/3;background:var(--panel-2);display:grid;place-items:center;color:var(--muted);font-size:14px}
+.view img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+.badge{position:absolute;top:8px;left:8px;background:var(--rec);color:#fff;font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;display:flex;gap:6px;align-items:center}
+.badge .pulse{width:7px;height:7px;border-radius:50%;background:#fff;animation:pulse 1.2s infinite}
+.badge time{font-variant-numeric:tabular-nums}
+
+.state{display:flex;align-items:center;gap:8px;padding:9px 12px 2px;font-weight:600;font-size:14px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--off);flex:none}
+.state-standby .dot{background:var(--ok)} .state-standby .state-label{color:var(--ok)}
+.state-recording .dot{background:var(--rec)} .state-recording .state-label{color:var(--rec)}
+.state-charging .dot{background:var(--charge)} .state-charging .state-label{color:var(--charge)}
+.state-sync .dot{background:var(--warn)} .state-sync .state-label{color:var(--warn)}
+.state-offline .state-label{color:var(--muted)}
+
+.meters{display:flex;align-items:center;gap:12px;padding:6px 12px 12px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.battery{display:flex;align-items:center;gap:6px}
+.cell{width:28px;height:13px;border:1.5px solid currentColor;border-radius:3px;position:relative;padding:1.5px}
+.cell::after{content:"";position:absolute;right:-4px;top:3px;width:2px;height:5px;background:currentColor;border-radius:0 1px 1px 0}
+.cell i{display:block;height:100%;border-radius:1px;background:var(--ok)}
+.cell.low i{background:var(--rec)}
+.signal{display:flex;align-items:flex-end;gap:2px;height:13px}
+.signal i{width:3px;background:var(--line);border-radius:1px}
+.signal i.on{background:var(--ink)}
+.seen{margin-left:auto}
+
+.archive{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);position:sticky;top:16px;
+  display:flex;flex-direction:column;max-height:calc(100vh - 32px);overflow:hidden}
+.archive-head{display:flex;align-items:center;gap:10px;padding:14px 16px 10px}
+.archive-head h2{font-size:17px;margin:0;flex:1}
+select{font:inherit;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:6px 10px}
+.player{margin:0 16px;border-radius:var(--radius-sm);overflow:hidden;background:#000;aspect-ratio:4/3;display:grid;place-items:center}
+.player video{width:100%;height:100%;display:block}
+.player .empty{color:#9AA6B1;font-size:14px;text-align:center;padding:20px}
+.player-meta{padding:8px 16px 12px;font-size:13px;color:var(--muted);min-height:20px}
+.player-meta b{color:var(--ink)}
+.list{overflow-y:auto;border-top:1px solid var(--line);padding:4px 0 12px}
+.day{font-size:13px;font-weight:700;color:var(--muted);padding:12px 16px 4px}
+.item{display:flex;gap:10px;align-items:center;padding:6px 10px 6px 16px;cursor:pointer;border:0;background:transparent;width:100%;text-align:left}
+.item:hover,.item.active{background:var(--panel-2)}
+.item img,.item .ph{width:72px;height:54px;object-fit:cover;border-radius:6px;background:var(--panel-2);flex:none}
+.item .txt{flex:1;min-width:0;font-size:14px}
+.item .t1{font-weight:650;font-variant-numeric:tabular-nums}
+.item .t2{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty-list{padding:28px 16px;color:var(--muted);font-size:14px;text-align:center}
+
+.toast{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom,0));background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:10px;
+  font-size:14px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none}
+.toast.show{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none!important}.toast{transition:none}}
+@media (max-width:640px){.topbar{flex-wrap:wrap;padding:12px 16px;gap:10px 18px}.clock{font-size:18px}.layout{padding:14px}
+  .alerts{padding:9px 16px}.channels{grid-template-columns:repeat(2,1fr);gap:10px}
+  .tile-head{padding:8px 8px 6px;gap:6px}.ch{font-size:22px;min-width:28px}.rename{display:none}.meters{gap:8px;padding:6px 8px 10px}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <h1>바디캠 관제</h1>
+  <div class="summary">
+    <span class="rec-count">녹화 중 <b id="sum-rec">0</b></span>
+    <span>연결 <b id="sum-on">0</b>/<b id="sum-all">0</b></span>
+    <span>저장공간 <b id="sum-disk">-</b></span>
+  </div>
+  <span class="conn" id="conn">서버 연결 중</span>
+  <div class="clock" id="clock">--:--:--</div>
+</header>
+<div class="alerts" id="alerts" aria-live="assertive"></div>
+
+<main class="layout">
+  <section class="channels" id="channels" aria-label="바디캠 상태"></section>
+
+  <aside class="archive" aria-label="녹화 기록">
+    <div class="archive-head">
+      <h2>녹화 기록</h2>
+      <select id="filter" aria-label="바디캠 선택"><option value="">모든 바디캠</option></select>
+    </div>
+    <div class="player" id="player"><div class="empty">목록에서 녹화본을 고르면 여기서 재생돼요</div></div>
+    <div class="player-meta" id="player-meta"></div>
+    <div class="list" id="list"></div>
+  </aside>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const LABEL = {standby:"자체녹화 중", recording:"서버 녹화 중", charging:"충전 중", sync:"미전송 영상 보내는 중", offline:"연결 끊김"};
+const cams = new Map();
+let recordings = [];
+let activeFile = null;
+let serverOffset = 0;
+
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2,"0");
+const now = () => Date.now()/1000 + serverOffset;
+function fmtDur(sec){ sec = Math.max(0, Math.round(sec)); const m = Math.floor(sec/60), s = sec%60;
+  return m >= 60 ? `${Math.floor(m/60)}:${pad(m%60)}:${pad(s)}` : `${m}:${pad(s)}`; }
+function fmtSize(b){ return b > 1e9 ? (b/1e9).toFixed(1)+"GB" : (b/1e6).toFixed(1)+"MB"; }
+function ago(t){ if(!t) return "소식 없음"; const d = Math.max(0, now()-t);
+  if(d < 60) return `${Math.floor(d)}초 전`; if(d < 3600) return `${Math.floor(d/60)}분 전`; return `${Math.floor(d/3600)}시간 전`; }
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function toast(msg){ const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 3500); }
+
+// ---------------------------------------------------------------- 채널 타일
+function signalBars(rssi){
+  const lvl = rssi == null ? 0 : rssi > -55 ? 4 : rssi > -65 ? 3 : rssi > -75 ? 2 : 1;
+  return `<span class="signal" title="${rssi ?? "-"} dBm">${[5,8,11,13].map((h,i)=>`<i style="height:${h}px" class="${i<lvl?"on":""}"></i>`).join("")}</span>`;
+}
+
+function renderCam(c){
+  let el = document.getElementById("t-"+c.id);
+  if(!el){
+    el = document.createElement("article");
+    el.id = "t-"+c.id;
+    el.className = "tile";
+    el.innerHTML = `
+      <div class="tile-head">
+        <span class="ch"></span>
+        <div class="who"><div class="name"></div><div class="cid"></div></div>
+        <button class="icon-btn rename" aria-label="이름 바꾸기" title="이름 바꾸기">✎</button>
+      </div>
+      <div class="view"><span class="placeholder"></span></div>
+      <div class="state"><span class="dot"></span><span class="state-label"></span></div>
+      <div class="meters"><span class="battery"><span class="cell"><i></i></span><span class="pct"></span></span><span class="sig"></span><span class="seen"></span></div>`;
+    el.querySelector(".rename").addEventListener("click", () => rename(c.id));
+    el.querySelector(".who").addEventListener("dblclick", () => rename(c.id));
+    const list = $("#channels");
+    const after = [...list.children].find(n => n.id > el.id);
+    list.insertBefore(el, after || null);
+  }
+  el.className = "tile state-" + c.state;
+  el.querySelector(".ch").textContent = c.id.replace(/\D/g,"").padStart(2,"0") || c.id;
+  el.querySelector(".name").textContent = c.name;
+  el.querySelector(".cid").textContent = c.id;
+  el.querySelector(".state-label").textContent = LABEL[c.state] || c.state;
+
+  const view = el.querySelector(".view");
+  const img = view.querySelector("img");
+  if(c.state === "recording" && c.uploading){
+    if(!img){
+      view.insertAdjacentHTML("beforeend", `<img alt="${esc(c.name)} 라이브 화면" src="/api/live/${c.id}.mjpg?${Date.now()}"><span class="badge"><span class="pulse"></span>REC <time></time></span>`);
+    }
+  } else if(img){
+    img.src = ""; img.remove(); view.querySelector(".badge")?.remove();
+  }
+  view.querySelector(".placeholder").textContent =
+    c.state === "offline" ? "신호 없음" : c.state === "recording" ? "영상 받는 중" : "평상시 자체녹화";
+
+  const pct = c.battery;
+  const cell = el.querySelector(".cell");
+  cell.classList.toggle("low", pct != null && pct < 20);
+  cell.querySelector("i").style.width = (pct ?? 0) + "%";
+  el.querySelector(".pct").textContent = pct == null ? "-" : `${Math.round(pct)}%${c.charging ? " ⚡" : ""}`;
+  el.querySelector(".sig").innerHTML = signalBars(c.rssi);
+  tickTile(c, el);
+}
+
+function tickTile(c, el){
+  el = el || document.getElementById("t-"+c.id);
+  if(!el) return;
+  el.querySelector(".seen").textContent = c.state === "offline" ? ago(c.last_seen) : "";
+  const t = el.querySelector(".badge time");
+  if(t && c.rec_started) t.textContent = fmtDur(now() - c.rec_started);
+}
+
+function renderSummary(){
+  const list = [...cams.values()];
+  $("#sum-rec").textContent = list.filter(c => c.state === "recording").length;
+  $("#sum-on").textContent = list.filter(c => c.state !== "offline").length;
+  $("#sum-all").textContent = list.length;
+  const box = $("#alerts");
+  const rec = list.filter(c => c.state === "recording");
+  box.innerHTML = rec.length ? `<span class="lead"><span class="pulse"></span>녹화 중</span>` +
+    rec.map(c => `<span class="alert" data-id="${c.id}">${esc(c.id)} ${esc(c.name)} <time></time></span>`).join("") : "";
+  tickAlerts();
+}
+function tickAlerts(){
+  document.querySelectorAll(".alert").forEach(a => {
+    const c = cams.get(a.dataset.id);
+    if(c && c.rec_started) a.querySelector("time").textContent = fmtDur(now() - c.rec_started);
+  });
+}
+
+function updateFilter(){
+  const sel = $("#filter"), cur = sel.value;
+  sel.innerHTML = `<option value="">모든 바디캠</option>` +
+    [...cams.values()].map(c => `<option value="${c.id}">${esc(c.id)} ${esc(c.name)}</option>`).join("");
+  sel.value = cur;
+}
+
+async function rename(id){
+  const c = cams.get(id);
+  const name = prompt(`${id}의 착용자나 이름을 입력하세요`, c?.name || "");
+  if(name == null || !name.trim()) return;
+  const r = await fetch(`/api/cams/${id}`, {method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name})});
+  if(r.ok){ toast("이름을 바꿨어요"); loadRecordings(); } else toast("이름을 바꾸지 못했어요");
+}
+
+// ---------------------------------------------------------------- 녹화 기록
+async function loadRecordings(){
+  const cam = $("#filter").value;
+  try{
+    const r = await fetch(`/api/recordings${cam ? "?cam="+cam : ""}`);
+    recordings = await r.json();
+  }catch{ recordings = []; }
+  renderList();
+}
+
+function renderList(){
+  const box = $("#list");
+  if(!recordings.length){ box.innerHTML = `<div class="empty-list">아직 저장된 녹화본이 없어요.<br>바디캠에서 녹화 버튼을 누르면 여기에 쌓여요.</div>`; return; }
+  let html = "", day = "";
+  for(const r of recordings){
+    if(r.date !== day){ day = r.date; html += `<div class="day">${day}</div>`; }
+    const t = r.start.slice(11,19);
+    html += `<button class="item ${r.file === activeFile ? "active" : ""}" data-file="${r.file}">
+      ${r.thumb ? `<img loading="lazy" src="${r.thumb}" alt="">` : `<span class="ph"></span>`}
+      <span class="txt"><span class="t1">${t}</span> <span class="t2">${fmtDur(r.duration)}</span>
+      <div class="t2">${esc(r.cam)} ${esc(r.name)}, ${fmtSize(r.size)}</div></span>
+      <span class="icon-btn del" role="button" tabindex="0" aria-label="삭제" title="삭제">🗑</span></button>`;
+  }
+  box.innerHTML = html;
+  box.querySelectorAll(".item").forEach(b => {
+    const r = recordings.find(x => x.file === b.dataset.file);
+    b.addEventListener("click", e => { if(e.target.closest(".del")) return; play(r); });
+    b.querySelector(".del").addEventListener("click", e => { e.stopPropagation(); remove(r); });
+  });
+}
+
+function play(r){
+  activeFile = r.file;
+  $("#player").innerHTML = `<video controls autoplay playsinline src="${r.video}"></video>`;
+  $("#player-meta").innerHTML = `<b>${esc(r.cam)} ${esc(r.name)}</b> ${r.date} ${r.start.slice(11,19)}, ${fmtDur(r.duration)}, ${r.fps}fps${r.audio ? ", 음성 포함" : ""}
+    <a href="${r.video}" download style="margin-left:6px;color:var(--charge)">내려받기</a>`;
+  renderList();
+}
+
+async function remove(r){
+  if(!confirm(`${r.cam} ${r.date} ${r.start.slice(11,19)} 녹화본을 삭제할까요? 되돌릴 수 없어요.`)) return;
+  const res = await fetch(`/api/recordings/${r.cam}/${r.date}/${r.file}`, {method:"DELETE"});
+  if(res.ok){
+    if(activeFile === r.file){ activeFile = null; $("#player").innerHTML = `<div class="empty">목록에서 녹화본을 고르면 여기서 재생돼요</div>`; $("#player-meta").textContent = ""; }
+    toast("녹화본을 삭제했어요"); loadRecordings();
+  } else toast("삭제하지 못했어요");
+}
+
+// ---------------------------------------------------------------- 실시간 연결
+function setHealth(h){
+  if(!h) return;
+  $("#sum-disk").textContent = Math.round(h.disk.ratio*100) + "%";
+}
+
+function connect(){
+  const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/dashboard`);
+  ws.onopen = () => { $("#conn").textContent = "실시간 연결됨"; $("#conn").classList.add("live"); };
+  ws.onclose = () => { $("#conn").textContent = "다시 연결 중"; $("#conn").classList.remove("live"); setTimeout(connect, 2000); };
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if(m.type === "snapshot"){
+      serverOffset = m.server_time - Date.now()/1000;
+      $("#channels").innerHTML = ""; cams.clear();
+      m.cams.forEach(c => { cams.set(c.id, c); renderCam(c); });
+      setHealth(m.health); updateFilter(); renderSummary();
+    } else if(m.type === "cam"){
+      const isNew = !cams.has(m.cam.id);
+      cams.set(m.cam.id, m.cam); renderCam(m.cam); renderSummary();
+      if(isNew) updateFilter();
+    } else if(m.type === "alert"){
+      toast(`${m.cam} ${m.name} 녹화 버튼이 눌렸어요`);
+    } else if(m.type === "recording"){
+      toast(`${m.item.cam} 녹화본이 저장됐어요 (${fmtDur(m.item.duration)})`);
+      const f = $("#filter").value;
+      if(!f || f === m.item.cam) loadRecordings();
+    } else if(m.type === "health"){
+      setHealth(m.health);
+    }
+  };
+  clearInterval(connect.ping);
+  connect.ping = setInterval(() => ws.readyState === 1 && ws.send("ping"), 20000);
+}
+
+setInterval(() => {
+  const d = new Date((now())*1000);
+  $("#clock").textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  cams.forEach(c => tickTile(c));
+  tickAlerts();
+}, 1000);
+
+$("#filter").addEventListener("change", loadRecordings);
+connect();
+loadRecordings();
+</script>
+</body>
+</html>

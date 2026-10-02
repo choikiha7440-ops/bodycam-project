@@ -1,0 +1,15 @@
+[Unit]
+Description=Bodycam server (FastAPI)
+After=network-online.target mosquitto.service
+Wants=network-online.target
+
+[Service]
+User=__USER__
+WorkingDirectory=__DIR__
+ExecStart=__DIR__/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+SupplementaryGroups=render video
+
+[Install]
+WantedBy=multi-user.target
